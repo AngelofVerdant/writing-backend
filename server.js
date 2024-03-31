@@ -44,6 +44,7 @@ app.use("/api/paper-types", require("./routes/paperType"));
 app.use("/api/orders", require("./routes/order"));
 app.use("/api/users", require("./routes/user"));
 app.use("/api/achievements", require("./routes/achievement"));
+app.use("/api/points", require("./routes/point"));
 
 
 // Use the errorLogger middleware for errors
