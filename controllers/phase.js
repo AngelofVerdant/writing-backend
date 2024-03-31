@@ -156,7 +156,6 @@ exports.getAll = async (req, res, next) => {
               'phasename',
               'phasedescription'
             ],
-            group: ['phase_id']
           }, { transaction }),
       ]);
 

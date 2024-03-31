@@ -156,7 +156,6 @@ exports.getAll = async (req, res, next) => {
               'essayname',
               'essaydescription'
             ],
-            group: ['essay_id']
           }, { transaction }),
       ]);
 

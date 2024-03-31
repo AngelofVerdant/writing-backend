@@ -156,7 +156,6 @@ exports.getAll = async (req, res, next) => {
               'pointname',
               'pointdescription'
             ],
-            group: ['point_id']
           }, { transaction }),
       ]);
 
