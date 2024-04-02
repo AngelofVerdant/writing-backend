@@ -247,7 +247,8 @@ module.exports = (sequelize) => {
         email: this.email,
         mobilenumber: this.mobilenumber,
         isadmin: this.isadmin,
-        iscustomer: this.iscustomer
+        iswriter: this.iswriter,
+        iscustomer: this.iscustomer,
       },
       process.env.ACCESS_SECRET,
       {

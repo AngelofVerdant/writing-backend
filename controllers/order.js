@@ -1,7 +1,7 @@
 const ErrorResponse = require("../utils/errorResponse");
 const { Order, User, Level, Paper, PaperType, sequelize } = require('../models');
 const stripe = require("stripe")(process.env.STRIPE_SECRET_TEST_LOCAL)
-const { getOrdersWithPagination, getOrder, getAdminOrdersWithPagination } = require("../queries/order");
+const { getOrdersWithPagination, getOrder, getAdminOrdersWithPagination, getCustomerStats, getWriterStats } = require("../queries/order");
 
 exports.create = async (req, res, next) => {
   let transaction;
@@ -283,6 +283,54 @@ exports.getById = async (req, res, next) => {
       res.status(200).json({
           success: true,
           data: order,
+      });
+  } catch (err) {
+      if (transaction) {
+          await transaction.rollback();
+      }
+      next(err);
+  }
+};
+
+exports.getUserStats = async (req, res, next) => {
+  let transaction;
+  const user = req.user;
+  try {
+      transaction = await sequelize.transaction();
+
+      const [stats] = await Promise.all([
+        getCustomerStats({ user_id: user.user_id, next }),
+      ]);
+
+      await transaction.commit();
+
+      res.status(200).json({
+          success: true,
+          data: stats,
+      });
+  } catch (err) {
+      if (transaction) {
+          await transaction.rollback();
+      }
+      next(err);
+  }
+};
+
+exports.getWorkerStats = async (req, res, next) => {
+  let transaction;
+  const user = req.user;
+  try {
+      transaction = await sequelize.transaction();
+
+      const [stats] = await Promise.all([
+        getWriterStats({ writer_id: user.user_id, next }),
+      ]);
+
+      await transaction.commit();
+
+      res.status(200).json({
+          success: true,
+          data: stats,
       });
   } catch (err) {
       if (transaction) {

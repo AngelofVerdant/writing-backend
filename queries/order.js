@@ -1,5 +1,6 @@
-const { Order } = require('../models');
+const { Order, sequelize } = require('../models');
 const logger = require('../utils/logger');
+const ErrorResponse = require("../utils/errorResponse");
 
 const getOrdersWithPagination = async ({ user_id, sortOrder, filters, searchRegex, skip, limit }) => {
   try {
@@ -147,8 +148,86 @@ const getOrder = async ({ orderId = null, user_id }) => {
   }
 };
 
+const getCustomerStats = async ({ user_id, next }) => {
+  try {
+    const [totalOrders, statusDistribution, totalPaidOrders ] = await Promise.all([
+      Order.count({
+        where: {
+          user_id: user_id,
+        }
+      }),
+      Order.findAll({
+        attributes: ['orderstatus', [sequelize.fn('COUNT', sequelize.col('orderstatus')), 'count']],
+        group: ['orderstatus'],
+        where: {
+          user_id: user_id
+        }
+      }),
+      Order.count({
+        where: {
+          orderpaymentstatus: { id: 2 },
+          user_id: user_id,
+        }
+      }),
+    ]);
+
+    if (!totalOrders) {
+      return next(new ErrorResponse(`Orders not found for user with ID ${user_id}`, 404));
+    }
+
+    const totalUnpaidOrders = totalOrders - totalPaidOrders;
+    const paymentStatusPercentage = {
+      paid: (totalPaidOrders / totalOrders) * 100,
+      unpaid: (totalUnpaidOrders / totalOrders) * 100
+    };
+
+    return {
+      orderVolume: totalOrders,
+      orderStatusDistribution: statusDistribution,
+      orderPaymentStatus: paymentStatusPercentage
+    };
+  } catch (err) {
+    logger.log('error', `${err.message}`, { stack: err.stack });
+    throw err;
+  }
+};
+
+const getWriterStats = async ({ writer_id, next }) => {
+  try {
+    const [totalOrders, statusDistribution] = await Promise.all([
+      Order.count({
+        where: {
+          writer_id: writer_id,
+        }
+      }),
+      Order.findAll({
+        attributes: ['orderstatus', [sequelize.fn('COUNT', sequelize.col('orderstatus')), 'count']],
+        group: ['orderstatus'],
+        where: {
+          writer_id: writer_id
+        }
+      }),
+    ]);
+
+    if (!totalOrders) {
+      return next(new ErrorResponse(`Orders not found for user with ID ${writer_id}`, 404));
+    }
+
+    return {
+      orderVolume: totalOrders,
+      orderStatusDistribution: statusDistribution,
+    };
+  } catch (err) {
+    logger.log('error', `${err.message}`, { stack: err.stack });
+    throw err;
+  }
+};
+
+
 module.exports = {
     getOrdersWithPagination,
     getAdminOrdersWithPagination,
     getOrder,
+    getCustomerStats,
+    getWriterStats,
 };

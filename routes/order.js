@@ -4,7 +4,7 @@ const { paginationMiddleware, sortOrderMiddleware, filterMiddleware, searchMiddl
 const { onlyLoggedIn, onlyAdmin } = require("../middleware/accessControl");
 
 const {
-  create, getAllPaginate, updateById, getById, pay, getAllAdminPaginate, assign,
+  create, getAllPaginate, updateById, getById, pay, getAllAdminPaginate, assign, getStats, getUserStats, getWorkerStats
 } = require("../controllers/order");
 
 const validSortOrders = ['asc', 'desc'];
@@ -28,6 +28,8 @@ router.route("/admin/paginate").get(
     filterMiddleware,
     getAllAdminPaginate
 );
+router.route("/user-stats").get(onlyLoggedIn, getUserStats);
+router.route("/worker-stats").get(onlyLoggedIn, getWorkerStats);
 router.route("/payment").patch(onlyLoggedIn, pay);
 router.route("/assign").patch(onlyAdmin, assign);
 router.route("/:orderId").get(onlyLoggedIn, getById);

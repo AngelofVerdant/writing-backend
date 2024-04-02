@@ -22,10 +22,6 @@ module.exports = (sequelize) => {
           },
         },
       },
-      writer_id: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-      },
       orderdescription: {
         type: DataTypes.TEXT,
         allowNull: false,
@@ -202,11 +198,15 @@ module.exports = (sequelize) => {
         type: DataTypes.JSONB,
         allowNull: true,
       },
+      writer_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
     },
     {
       modelName: 'Order',
       freezeTableName: true,
-      timestamps: false,
+      timestamps: true,
       hooks: {
 
       },
