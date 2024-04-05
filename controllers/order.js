@@ -5,7 +5,7 @@ const unlinkAsync = util.promisify(fs.unlink);
 const { Order, User, Level, Paper, PaperType, sequelize } = require('../models');
 const stripe = require("stripe")(process.env.STRIPE_SECRET_TEST_LOCAL)
 const { getOrdersWithPagination, getOrder, getWriterOrder, getAdminOrdersWithPagination, getWriterOrdersWithPagination, getCustomerStats, getWriterStats } = require("../queries/order");
-const { downloadAllMedia } = require("../utils/common");
+const { downloadAllMedia, downloadAllDocuments } = require("../utils/common");
 
 exports.create = async (req, res, next) => {
   let transaction;
@@ -23,8 +23,8 @@ exports.create = async (req, res, next) => {
           orderformat,
           orderpages,
           ordersources,
-          orderdefaultimage,
-          orderimages
+          orderdefaultdocument,
+          orderdocuments
       } = req.body;
 
       transaction = await sequelize.transaction();
@@ -62,8 +62,8 @@ exports.create = async (req, res, next) => {
           orderformat,
           orderpages,
           ordersources,
-          orderdefaultimage,
-          orderimages,
+          orderdefaultdocument,
+          orderdocuments,
           orderstatus: { id: 1, title: 'Pending' },
           orderpaymentstatus: { id: 1, title: 'Unpaid' },
           orderprice: orderAmount,
@@ -147,8 +147,8 @@ exports.updateById = async (req, res, next) => {
       const { orderId } = req.params;
       const { 
         orderdescription,
-        orderdefaultimage,
-        orderimages,
+        orderdefaultdocument,
+        orderdocuments,
        } = req.body;
 
       transaction = await sequelize.transaction();
@@ -168,8 +168,8 @@ exports.updateById = async (req, res, next) => {
 
       await order.update({
         orderdescription,
-        orderdefaultimage,
-        orderimages,
+        orderdefaultdocument,
+        orderdocuments,
       }, { transaction });
 
       await transaction.commit();
@@ -325,7 +325,7 @@ exports.downloadById = async (req, res, next) => {
 
     zipFileName = `order_${orderId}_images.zip`;
 
-    const zipFilePath = await downloadAllMedia(order.orderimages, zipFileName);
+    const zipFilePath = await downloadAllDocuments(order.orderdocuments, zipFileName);
 
     res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}"`);
     res.setHeader('Content-Type', 'application/zip');

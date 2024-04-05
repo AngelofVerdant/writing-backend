@@ -186,15 +186,17 @@ module.exports = (sequelize) => {
           },
         },
       },
-      orderdefaultimage: {
+      orderdefaultdocument: {
         type: DataTypes.JSONB,
         allowNull: true,
         defaultValue: { 
           secure_url: '#', 
           public_id: '#',
+          asset_id: '#',
+          original_filename: '#'
          },
       },
-      orderimages: {
+      orderdocuments: {
         type: DataTypes.JSONB,
         allowNull: true,
       },

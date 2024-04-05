@@ -14,13 +14,13 @@ exports.create = async (req, res, next) => {
 
       const subfolder = req.body.subfolder || "default_subfolder";
       const folderName = `${process.env.CLOUDINARY_ROOT_FOLDER}/${subfolder}`;
-      // const folderNameDefault = `Synergist/defaults`;
 
       if (!req.files || !req.files.files) {
         return next(new ErrorResponse("No files passed", 400));
       }
 
       const files = Array.isArray(req.files.files) ? req.files.files : [req.files.files];
+      console.log(files)
 
       const cloudinaryConfig = {
         cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -30,16 +30,18 @@ exports.create = async (req, res, next) => {
       
       cloudinary.config(cloudinaryConfig);
 
-      const streamUploads = files.map((file) => {
-        return new Promise((resolve) => {
+      const uploadPromises = files.map((file) => {
+        return new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream(
             {
               folder: folderName,
+              resource_type: "raw",
+              filename: file.originalname
             },
             (error, result) => {
               if (error) {
                 console.error('Error uploading file:', error);
-                resolve(null);
+                reject(error);
               } else {
                 resolve(result);
               }
@@ -49,13 +51,12 @@ exports.create = async (req, res, next) => {
         });
       });
 
-      const results = await Promise.all(streamUploads);
-
-      if (results.some((result) => result === null)) {
+      try {
+        const results = await Promise.all(uploadPromises);
+        res.status(200).json({ success: true, message: "Upload Success", data: { documents: results } });
+      } catch (uploadError) {
         return next(new ErrorResponse("Error uploading files", 400));
       }
-
-      res.status(200).json({ success: true, message: "Upload Success", data: { images: results } });
     });
   } catch (error) {
     next(error);
@@ -63,7 +64,7 @@ exports.create = async (req, res, next) => {
 };
 
 exports.remove = async (req, res, next) => {
-  const { asset_id } = req.body;
+  const { public_id } = req.body;
 
   try {
     const cloudinaryConfig = {
@@ -74,9 +75,9 @@ exports.remove = async (req, res, next) => {
 
     cloudinary.config(cloudinaryConfig);
 
-    const result = await cloudinary.uploader.destroy(asset_id);
+    const result = await cloudinary.uploader.destroy(public_id);
 
-    res.status(200).json({ sucess: true, message: "Delete Success", data:{images: result} });
+    res.status(200).json({ success: true, message: "Delete Success", data: { documents: result } });
   } catch (error) {
     next(error);
   }

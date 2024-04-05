@@ -180,8 +180,8 @@ const getOrder = async ({ orderId = null, user_id }) => {
             'orderstatus',
             'orderpaymentstatus',
             'orderprice',
-            'orderdefaultimage',
-            'orderimages'
+            'orderdefaultdocument',
+            'orderdocuments'
         ],
           where: {
             order_id: orderId,
@@ -210,8 +210,9 @@ const getWriterOrder = async ({ orderId = null, user_id }) => {
     const [order] = await Promise.all([
         Order.findOne({
           attributes: [
-            'order_id', 
-            'orderimages'
+            'order_id',
+            'orderdefaultdocument', 
+            'orderdocuments'
         ],
           where: {
             order_id: orderId,

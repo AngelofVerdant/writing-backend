@@ -60,7 +60,51 @@ const downloadAllMedia = async (images, zipFileName) => {
   }
 };
 
+const downloadAllDocuments = async (documents, zipFileName) => {
+  try {
+    const cloudinaryConfig = {
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    };
+    cloudinary.config(cloudinaryConfig);
+
+    if (!documents || documents.length === 0) {
+      throw new Error('No documents found');
+    }
+    
+    const output = fs.createWriteStream(zipFileName);
+    const archive = archiver('zip', {
+      zlib: { level: 9 }
+    });
+    archive.pipe(output);
+
+    for (const document of documents) {
+      const { secure_url, public_id, asset_id, original_filename } = document;
+      const documentUrl = cloudinary.url(asset_id);
+      const documentFileName = `${public_id}_${original_filename}`;
+      const response = await axios.get(documentUrl, { responseType: 'stream' });
+      archive.append(response.data, { name: documentFileName });
+    }
+
+    archive.finalize();
+
+    return new Promise((resolve, reject) => {
+      output.on('close', () => {
+        resolve(zipFileName);
+      });
+      archive.on('error', (err) => {
+        reject(err);
+      });
+    });
+  } catch (error) {
+    console.error('Error downloading documents:', error);
+    throw new Error('Failed to generate zip file', error);
+  }
+};
+
 module.exports = {
     removeAllMedia,
     downloadAllMedia,
+    downloadAllDocuments,
 };

@@ -28,6 +28,7 @@ app.get("/api", (req, res, next) => {
 app.use("/api/auth", require("./routes/auth"));
 
 app.use("/api/media", require("./routes/mediaManager"));
+app.use("/api/documents", require("./routes/documentManager"));
 
 // new staff
 app.use("/api/levels", require("./routes/level"));
