@@ -1,7 +1,11 @@
 const ErrorResponse = require("../utils/errorResponse");
+const fs = require('fs');
+const util = require('util');
+const unlinkAsync = util.promisify(fs.unlink);
 const { Order, User, Level, Paper, PaperType, sequelize } = require('../models');
 const stripe = require("stripe")(process.env.STRIPE_SECRET_TEST_LOCAL)
-const { getOrdersWithPagination, getOrder, getAdminOrdersWithPagination, getCustomerStats, getWriterStats } = require("../queries/order");
+const { getOrdersWithPagination, getOrder, getWriterOrder, getAdminOrdersWithPagination, getWriterOrdersWithPagination, getCustomerStats, getWriterStats } = require("../queries/order");
+const { downloadAllMedia } = require("../utils/common");
 
 exports.create = async (req, res, next) => {
   let transaction;
@@ -110,6 +114,24 @@ exports.getAllAdminPaginate = async (req, res, next) => {
 
     const [result] = await Promise.all([
         getAdminOrdersWithPagination({ sortOrder, filters, searchRegex, skip, limit }),
+    ]);
+
+    res.status(200).json({ success: true, message: "Success", data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getAllWriterPaginate = async (req, res, next) => {
+  const user = req.user;
+  try {
+    const sortOrder = req.sortOrder;
+    const filters = req.filterCriteria;
+    const searchRegex = req.searchRegex;
+    const { skip, limit } = req.pagination;
+
+    const [result] = await Promise.all([
+        getWriterOrdersWithPagination({ user_id: user.user_id, sortOrder, filters, searchRegex, skip, limit }),
     ]);
 
     res.status(200).json({ success: true, message: "Success", data: result });
@@ -265,7 +287,6 @@ exports.assign = async (req, res, next) => {
   }
 };
 
-
 exports.getById = async (req, res, next) => {
   let transaction;
   const user = req.user;
@@ -289,6 +310,40 @@ exports.getById = async (req, res, next) => {
           await transaction.rollback();
       }
       next(err);
+  }
+};
+
+exports.downloadById = async (req, res, next) => {
+  const user = req.user;
+  let zipFileName;
+  try {
+    const { orderId } = req.params;
+
+    const [order] = await Promise.all([
+      getWriterOrder({ orderId: orderId, user_id: user.user_id }),
+    ]);
+
+    zipFileName = `order_${orderId}_images.zip`;
+
+    const zipFilePath = await downloadAllMedia(order.orderimages, zipFileName);
+
+    res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}"`);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    const readStream = fs.createReadStream(zipFilePath);
+    readStream.pipe(res);
+
+    readStream.on('close', async () => {
+      try {
+        await unlinkAsync(zipFilePath);
+        console.log(`Zip file '${zipFilePath}' deleted successfully.`);
+      } catch (error) {
+        console.error(`Error deleting zip file '${zipFilePath}':`, error);
+      }
+    });
+  } catch (err) {
+    next(err);
   }
 };
 

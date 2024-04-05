@@ -106,6 +106,59 @@ const getAdminOrdersWithPagination = async ({ sortOrder, filters, searchRegex, s
   }
 };
 
+const getWriterOrdersWithPagination = async ({ user_id, sortOrder, filters, searchRegex, skip, limit }) => {
+  try {
+    const whereClause = {
+      writer_id: user_id,
+    };
+
+    if (filters) {
+      for (const key in filters) {
+        switch (key) {
+          case 'customFilter':
+            break;
+          default:
+            console.warn(`Unknown filter key: ${key}`);
+            break;
+        }
+      }
+    }
+
+    if (searchRegex) {
+      whereClause.ordertitle = searchRegex;
+    }
+
+    const [totalCount, assignments] = await Promise.all([
+        Order.count({
+          where: whereClause
+        }),
+        Order.findAll({
+          attributes: ['order_id', 'ordertitle', 'orderstatus', 'orderprice', 'orderpaymentstatus'],
+          where: whereClause,
+          order: [['ordertitle', sortOrder]],
+          limit: limit,
+          offset: skip,
+          distinct: true,
+        }),
+    ]);
+
+    return {
+      totalCount: totalCount,
+      count: assignments.length,
+      assignments: assignments.map(assignment => ({
+        id: assignment.order_id,
+        title: assignment.ordertitle,
+        price: assignment.orderprice,
+        status: assignment.orderstatus,
+        payment: assignment.orderpaymentstatus,
+      })),
+    };
+  } catch (err) {
+    logger.log('error', `${err.message}`, { stack: err.stack });
+    throw err;
+  }
+};
+
 const getOrder = async ({ orderId = null, user_id }) => {
   try {
     if (orderId === null || isNaN(orderId)) {
@@ -133,6 +186,36 @@ const getOrder = async ({ orderId = null, user_id }) => {
           where: {
             order_id: orderId,
             user_id: user_id
+          }
+        }),
+    ]);
+
+    if (!order) {
+      return next(new ErrorResponse(`Order not found with ID ${orderId}`, 404));
+    }
+
+    return order;
+  } catch (err) {
+    logger.log('error', `${err.message}`, { stack: err.stack });
+    throw err;
+  }
+};
+
+const getWriterOrder = async ({ orderId = null, user_id }) => {
+  try {
+    if (orderId === null || isNaN(orderId)) {
+      throw new Error('Order ID must be a valid number');
+    }
+
+    const [order] = await Promise.all([
+        Order.findOne({
+          attributes: [
+            'order_id', 
+            'orderimages'
+        ],
+          where: {
+            order_id: orderId,
+            writer_id: user_id
           }
         }),
     ]);
@@ -227,7 +310,9 @@ const getWriterStats = async ({ writer_id, next }) => {
 module.exports = {
     getOrdersWithPagination,
     getAdminOrdersWithPagination,
+    getWriterOrdersWithPagination,
     getOrder,
+    getWriterOrder,
     getCustomerStats,
     getWriterStats,
 };

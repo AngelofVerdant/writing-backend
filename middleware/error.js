@@ -90,10 +90,10 @@ const errorHandler = (err, req, res, next) => {
     error = new ErrorResponse([message], 400);
   }
 
-  // if (err instanceof ReferenceError) {
-  //   const message = "Reference error. Please check your code and try again.";
-  //   error = new ErrorResponse([message], 500);
-  // }
+  if (err instanceof ReferenceError) {
+    const message = "Reference error. Please check your code and try again.";
+    error = new ErrorResponse([message], 500);
+  }
 
   if (err instanceof SyntaxError) {
     const message = "Syntax error. Please check your code and try again.";

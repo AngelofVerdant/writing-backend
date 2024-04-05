@@ -2,7 +2,9 @@ require("dotenv").config({ path: "./config.env" });
 
 const express = require("express");
 const app = express();
+const cors = require('cors');
 const connectDB = require("./config/db");
+const corsConfigs = require('./config/origin');
 const errorHandler = require("./middleware/error");
 const logger = require('./utils/logger');
 const restartServer = require('./utils/restartServer');
@@ -10,17 +12,7 @@ const restartServer = require('./utils/restartServer');
 connectDB();
 
 // Cors
-app.use(function(req, res, next) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-  res.setHeader('Access-Control-Allow-Headers', 'Origin, Access-Control-Allow-Origin, Content-Type,Accept, Authorization, Origin, Accept, X-Requested-With,Access-Control-Request-Method, Access-Control-Request-Headers, x-access-token');
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  if ('OPTIONS' == req.method) {
-      return res.sendStatus(200);
-  } else {
-      next();
-  }
-});
+app.use(cors(corsConfigs));
 
 app.use(express.json());
 
