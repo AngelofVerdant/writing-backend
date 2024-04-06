@@ -80,9 +80,10 @@ const downloadAllDocuments = async (documents, zipFileName) => {
     archive.pipe(output);
 
     for (const document of documents) {
-      const { secure_url, public_id, asset_id, original_filename } = document;
-      const documentUrl = cloudinary.url(asset_id);
-      const documentFileName = `${public_id}_${original_filename}`;
+      const { secure_url, public_id, original_filename, asset_id } = document;
+      const documentUrl = cloudinary.url(secure_url);
+      const extension = path.extname(secure_url);
+      const documentFileName = `${original_filename}${extension}`;
       const response = await axios.get(documentUrl, { responseType: 'stream' });
       archive.append(response.data, { name: documentFileName });
     }

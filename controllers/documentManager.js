@@ -64,7 +64,7 @@ exports.create = async (req, res, next) => {
 };
 
 exports.remove = async (req, res, next) => {
-  const { public_id } = req.body;
+  const { asset_id } = req.body;
 
   try {
     const cloudinaryConfig = {
@@ -75,7 +75,7 @@ exports.remove = async (req, res, next) => {
 
     cloudinary.config(cloudinaryConfig);
 
-    const result = await cloudinary.uploader.destroy(public_id);
+    const result = await cloudinary.uploader.destroy(asset_id);
 
     res.status(200).json({ success: true, message: "Delete Success", data: { documents: result } });
   } catch (error) {

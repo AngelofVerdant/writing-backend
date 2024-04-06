@@ -323,7 +323,7 @@ exports.downloadById = async (req, res, next) => {
       getWriterOrder({ orderId: orderId, user_id: user.user_id }),
     ]);
 
-    zipFileName = `order_${orderId}_images.zip`;
+    zipFileName = `order_${orderId}_documents.zip`;
 
     const zipFilePath = await downloadAllDocuments(order.orderdocuments, zipFileName);
 
