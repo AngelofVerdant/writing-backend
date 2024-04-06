@@ -60,7 +60,7 @@ const downloadAllMedia = async (images, zipFileName) => {
   }
 };
 
-const downloadAllDocuments = async (documents, zipFileName) => {
+const downloadAllDocuments = async (documents, zipFileName, pdfFileName) => {
   try {
     const cloudinaryConfig = {
       cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -79,8 +79,10 @@ const downloadAllDocuments = async (documents, zipFileName) => {
     });
     archive.pipe(output);
 
+    archive.append(fs.createReadStream(pdfFileName), { name: 'order_details.pdf' });
+
     for (const document of documents) {
-      const { secure_url, public_id, original_filename, asset_id } = document;
+      const { secure_url, original_filename } = document;
       const documentUrl = cloudinary.url(secure_url);
       const extension = path.extname(secure_url);
       const documentFileName = `${original_filename}${extension}`;

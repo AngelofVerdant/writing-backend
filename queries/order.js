@@ -1,4 +1,4 @@
-const { Order, sequelize } = require('../models');
+const { Order, Level, Paper, PaperType, sequelize } = require('../models');
 const logger = require('../utils/logger');
 const ErrorResponse = require("../utils/errorResponse");
 
@@ -46,7 +46,8 @@ const getOrdersWithPagination = async ({ user_id, sortOrder, filters, searchRege
         title: order.ordertitle,
         payment: order.orderpaymentstatus.id,
         price: order.orderprice,
-        stage: order.orderstatus.title,
+        stagetitle: order.orderstatus.title,
+        stageid: order.orderstatus.id,
       })),
     };
   } catch (err) {
@@ -211,13 +212,38 @@ const getWriterOrder = async ({ orderId = null, user_id }) => {
         Order.findOne({
           attributes: [
             'order_id',
+            'ordertitle',
+            'orderdescription',
+            'orderspace',
+            'orderdeadline',
+            'orderlanguage',
+            'orderformat',
+            'orderpages',
+            'ordersources',
             'orderdefaultdocument', 
             'orderdocuments'
-        ],
+          ],
           where: {
             order_id: orderId,
             writer_id: user_id
-          }
+          },
+          include: [
+            {
+                model: Level,
+                as: 'Level',
+                attributes: ['level_id', 'levelname'],
+            },
+            {
+                model: Paper,
+                as: 'Paper',
+                attributes: ['paper_id', 'papername'],
+            },
+            {
+                model: PaperType,
+                as: 'PaperType',
+                attributes: ['paper_type_id', 'papertypename'],
+            },
+          ],
         }),
     ]);
 

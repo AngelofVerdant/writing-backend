@@ -5,7 +5,8 @@ const unlinkAsync = util.promisify(fs.unlink);
 const { Order, User, Level, Paper, PaperType, sequelize } = require('../models');
 const stripe = require("stripe")(process.env.STRIPE_SECRET_TEST_LOCAL)
 const { getOrdersWithPagination, getOrder, getWriterOrder, getAdminOrdersWithPagination, getWriterOrdersWithPagination, getCustomerStats, getWriterStats } = require("../queries/order");
-const { downloadAllMedia, downloadAllDocuments } = require("../utils/common");
+const { downloadAllDocuments } = require("../utils/common");
+const { generateOrderPdf } = require('../utils/pdf');
 
 exports.create = async (req, res, next) => {
   let transaction;
@@ -316,6 +317,7 @@ exports.getById = async (req, res, next) => {
 exports.downloadById = async (req, res, next) => {
   const user = req.user;
   let zipFileName;
+  let pdfFileName;
   try {
     const { orderId } = req.params;
 
@@ -325,7 +327,35 @@ exports.downloadById = async (req, res, next) => {
 
     zipFileName = `order_${orderId}_documents.zip`;
 
-    const zipFilePath = await downloadAllDocuments(order.orderdocuments, zipFileName);
+    const orderDetails = {
+      orderId: order.order_id,
+      orderTitle: order.ordertitle,
+      orderDescription: order.orderdescription,
+      orderLevel: order.Level.levelname,
+      orderPaper: order.Paper.papername,
+      orderPaperType: order.PaperType.papertypename,
+      orderSpace: order.orderspace.title,
+      orderDeadline: order.orderdeadline.title,
+      orderLanguage: order.orderlanguage.title,
+      orderFormat: order.orderformat.title,
+      orderPages: order.orderpages,
+      orderSources: order.ordersources,
+    };
+
+    pdfFileName = await generateOrderPdf(orderDetails);
+
+    await new Promise((resolve, reject) => {
+      const checkFile = setInterval(() => {
+        fs.access(pdfFileName, fs.constants.F_OK, (err) => {
+          if (!err) {
+            clearInterval(checkFile);
+            resolve();
+          }
+        });
+      }, 1000);
+    });
+
+    const zipFilePath = await downloadAllDocuments(order.orderdocuments, zipFileName, pdfFileName);
 
     res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}"`);
     res.setHeader('Content-Type', 'application/zip');
@@ -337,6 +367,7 @@ exports.downloadById = async (req, res, next) => {
     readStream.on('close', async () => {
       try {
         await unlinkAsync(zipFilePath);
+        await unlinkAsync(pdfFileName);
         console.log(`Zip file '${zipFilePath}' deleted successfully.`);
       } catch (error) {
         console.error(`Error deleting zip file '${zipFilePath}':`, error);
