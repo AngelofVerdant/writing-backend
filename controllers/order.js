@@ -3,8 +3,9 @@ const fs = require('fs');
 const util = require('util');
 const unlinkAsync = util.promisify(fs.unlink);
 const { Order, User, Level, Paper, PaperType, sequelize } = require('../models');
+// const { Op } = require('sequelize');
 const stripe = require("stripe")(process.env.STRIPE_SECRET_TEST_LOCAL)
-const { getOrdersWithPagination, getOrder, getWriterOrder, getAdminOrdersWithPagination, getWriterOrdersWithPagination, getCustomerStats, getWriterStats } = require("../queries/order");
+const { getOrdersWithPagination, getOrder, getOrderByIdWriter, getWriterOrder, getUserOrder, getAdminOrdersWithPagination, getWriterOrdersWithPagination, getCustomerStats, getWriterStats } = require("../queries/order");
 const { downloadAllDocuments } = require("../utils/common");
 const { generateOrderPdf } = require('../utils/pdf');
 
@@ -187,6 +188,56 @@ exports.updateById = async (req, res, next) => {
   }
 };
 
+exports.submitById = async (req, res, next) => {
+  let transaction;
+  const user = req.user;
+  try {
+      const { orderId } = req.params;
+      const { 
+        orderdefaultuploaddocument,
+        orderuploaddocuments,
+       } = req.body;
+
+      transaction = await sequelize.transaction();
+
+      const [order] = await Promise.all([
+          Order.findOne({
+            where: {
+                order_id: orderId,
+                writer_id: user.user_id,
+                // orderstatus: { id: { [Op.not]: 3 } },
+            }
+          }, { transaction }),
+      ]);
+
+      if (!order) {
+        return next(new ErrorResponse(`Order not found with ID ${orderId}`, 404));
+      }
+
+      if (!orderdefaultuploaddocument || !orderuploaddocuments || !orderuploaddocuments.length) {
+        return next(new ErrorResponse('Default and additional documents are required', 400));
+      }
+
+      await order.update({
+        orderdefaultuploaddocument,
+        orderuploaddocuments,
+        orderstatus: { id: 3, title: 'Completed' },
+      }, { transaction });
+
+      await transaction.commit();
+
+      res.status(200).json({
+          success: true,
+          data: order,
+      });
+  } catch (err) {
+      if (transaction) {
+          await transaction.rollback();
+      }
+      next(err);
+  }
+};
+
 exports.pay = async (req, res, next) => {
   let transaction;
   const user = req.user;
@@ -297,7 +348,7 @@ exports.getById = async (req, res, next) => {
       transaction = await sequelize.transaction();
 
       const [order] = await Promise.all([
-        getOrder({ orderId: orderId, user_id: user.user_id }),
+        getOrder({ orderId: orderId, user_id: user.user_id, next }),
       ]);
 
       await transaction.commit();
@@ -314,7 +365,33 @@ exports.getById = async (req, res, next) => {
   }
 };
 
-exports.downloadById = async (req, res, next) => {
+exports.getByIdWriter = async (req, res, next) => {
+  let transaction;
+  const user = req.user;
+  try {
+      const { orderId } = req.params;
+
+      transaction = await sequelize.transaction();
+
+      const [order] = await Promise.all([
+        getOrderByIdWriter({ orderId: orderId, user_id: user.user_id, next }),
+      ]);
+
+      await transaction.commit();
+
+      res.status(200).json({
+          success: true,
+          data: order,
+      });
+  } catch (err) {
+      if (transaction) {
+          await transaction.rollback();
+      }
+      next(err);
+  }
+};
+
+exports.downloadByIdWriter = async (req, res, next) => {
   const user = req.user;
   let zipFileName;
   let pdfFileName;
@@ -356,6 +433,70 @@ exports.downloadById = async (req, res, next) => {
     });
 
     const zipFilePath = await downloadAllDocuments(order.orderdocuments, zipFileName, pdfFileName);
+
+    res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}"`);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    const readStream = fs.createReadStream(zipFilePath);
+    readStream.pipe(res);
+
+    readStream.on('close', async () => {
+      try {
+        await unlinkAsync(zipFilePath);
+        await unlinkAsync(pdfFileName);
+        console.log(`Zip file '${zipFilePath}' deleted successfully.`);
+      } catch (error) {
+        console.error(`Error deleting zip file '${zipFilePath}':`, error);
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.downloadByIdUser = async (req, res, next) => {
+  const user = req.user;
+  let zipFileName;
+  let pdfFileName;
+  try {
+    const { orderId } = req.params;
+
+    const [order] = await Promise.all([
+      getUserOrder({ orderId: orderId, user_id: user.user_id }),
+    ]);
+
+    zipFileName = `order_${orderId}_assignment.zip`;
+
+    const orderDetails = {
+      orderId: order.order_id,
+      orderTitle: order.ordertitle,
+      orderDescription: order.orderdescription,
+      orderLevel: order.Level.levelname,
+      orderPaper: order.Paper.papername,
+      orderPaperType: order.PaperType.papertypename,
+      orderSpace: order.orderspace.title,
+      orderDeadline: order.orderdeadline.title,
+      orderLanguage: order.orderlanguage.title,
+      orderFormat: order.orderformat.title,
+      orderPages: order.orderpages,
+      orderSources: order.ordersources,
+    };
+
+    pdfFileName = await generateOrderPdf(orderDetails);
+
+    await new Promise((resolve, reject) => {
+      const checkFile = setInterval(() => {
+        fs.access(pdfFileName, fs.constants.F_OK, (err) => {
+          if (!err) {
+            clearInterval(checkFile);
+            resolve();
+          }
+        });
+      }, 1000);
+    });
+
+    const zipFilePath = await downloadAllDocuments(order.orderuploaddocuments, zipFileName, pdfFileName);
 
     res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}"`);
     res.setHeader('Content-Type', 'application/zip');

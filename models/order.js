@@ -200,6 +200,20 @@ module.exports = (sequelize) => {
         type: DataTypes.JSONB,
         allowNull: true,
       },
+      orderdefaultuploaddocument: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+        defaultValue: { 
+          secure_url: '#', 
+          public_id: '#',
+          asset_id: '#',
+          original_filename: '#'
+         },
+      },
+      orderuploaddocuments: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+      },
       writer_id: {
         type: DataTypes.INTEGER,
         allowNull: true,

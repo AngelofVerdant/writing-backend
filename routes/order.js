@@ -4,7 +4,11 @@ const { paginationMiddleware, sortOrderMiddleware, filterMiddleware, searchMiddl
 const { onlyLoggedIn, onlyAdmin } = require("../middleware/accessControl");
 
 const {
-  create, getAllPaginate, updateById, getById, pay, getAllAdminPaginate, assign, getUserStats, getWorkerStats, getAllWriterPaginate, downloadById
+  create, getAllPaginate, updateById, getById, pay, getAllAdminPaginate, assign, getUserStats, getWorkerStats, getAllWriterPaginate,
+  getByIdWriter,
+  submitById,
+  downloadByIdWriter,
+  downloadByIdUser
 } = require("../controllers/order");
 
 const validSortOrders = ['asc', 'desc'];
@@ -39,9 +43,12 @@ router.route("/writer/paginate").get(
 router.route("/user-stats").get(onlyLoggedIn, getUserStats);
 router.route("/worker-stats").get(onlyLoggedIn, getWorkerStats);
 router.route("/payment").patch(onlyLoggedIn, pay);
-router.route("/download/:orderId").get(onlyLoggedIn, downloadById);
+router.route("/download/writer/:orderId").get(onlyLoggedIn, downloadByIdWriter);
+router.route("/download/user/:orderId").get(onlyLoggedIn, downloadByIdUser);
 router.route("/assign").patch(onlyAdmin, assign);
 router.route("/:orderId").get(onlyLoggedIn, getById);
+router.route("/writer/:orderId").get(onlyLoggedIn, getByIdWriter);
+router.route("/writer/:orderId").patch(onlyLoggedIn, submitById);
 router.route("/:orderId").patch(onlyLoggedIn, updateById);
 
 module.exports = router;

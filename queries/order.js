@@ -134,7 +134,7 @@ const getWriterOrdersWithPagination = async ({ user_id, sortOrder, filters, sear
           where: whereClause
         }),
         Order.findAll({
-          attributes: ['order_id', 'ordertitle', 'orderstatus', 'orderprice', 'orderpaymentstatus'],
+          attributes: ['order_id', 'ordertitle', 'orderstatus'],
           where: whereClause,
           order: [['ordertitle', sortOrder]],
           limit: limit,
@@ -149,9 +149,8 @@ const getWriterOrdersWithPagination = async ({ user_id, sortOrder, filters, sear
       assignments: assignments.map(assignment => ({
         id: assignment.order_id,
         title: assignment.ordertitle,
-        price: assignment.orderprice,
-        status: assignment.orderstatus,
-        payment: assignment.orderpaymentstatus,
+        stagetitle: assignment.orderstatus.title,
+        stageid: assignment.orderstatus.id,
       })),
     };
   } catch (err) {
@@ -160,7 +159,7 @@ const getWriterOrdersWithPagination = async ({ user_id, sortOrder, filters, sear
   }
 };
 
-const getOrder = async ({ orderId = null, user_id }) => {
+const getOrder = async ({ orderId = null, user_id, next }) => {
   try {
     if (orderId === null || isNaN(orderId)) {
       throw new Error('Order ID must be a valid number');
@@ -202,6 +201,45 @@ const getOrder = async ({ orderId = null, user_id }) => {
   }
 };
 
+const getOrderByIdWriter = async ({ orderId = null, user_id, next }) => {
+  try {
+    if (orderId === null || isNaN(orderId)) {
+      throw new Error('Order ID must be a valid number');
+    }
+
+    const [order] = await Promise.all([
+        Order.findOne({
+          attributes: [
+            'order_id', 
+            'ordertitle', 
+            'orderdescription',
+            'orderspace',
+            'orderdeadline',
+            'orderlanguage',
+            'orderformat',
+            'orderpages',
+            'ordersources',
+            'orderdefaultuploaddocument',
+            'orderuploaddocuments'
+        ],
+          where: {
+            order_id: orderId,
+            writer_id: user_id
+          }
+        }),
+    ]);
+
+    if (!order) {
+      return next(new ErrorResponse(`Order not found with ID ${orderId}`, 404));
+    }
+
+    return order;
+  } catch (err) {
+    logger.log('error', `${err.message}`, { stack: err.stack });
+    throw err;
+  }
+};
+
 const getWriterOrder = async ({ orderId = null, user_id }) => {
   try {
     if (orderId === null || isNaN(orderId)) {
@@ -226,6 +264,62 @@ const getWriterOrder = async ({ orderId = null, user_id }) => {
           where: {
             order_id: orderId,
             writer_id: user_id
+          },
+          include: [
+            {
+                model: Level,
+                as: 'Level',
+                attributes: ['level_id', 'levelname'],
+            },
+            {
+                model: Paper,
+                as: 'Paper',
+                attributes: ['paper_id', 'papername'],
+            },
+            {
+                model: PaperType,
+                as: 'PaperType',
+                attributes: ['paper_type_id', 'papertypename'],
+            },
+          ],
+        }),
+    ]);
+
+    if (!order) {
+      return next(new ErrorResponse(`Order not found with ID ${orderId}`, 404));
+    }
+
+    return order;
+  } catch (err) {
+    logger.log('error', `${err.message}`, { stack: err.stack });
+    throw err;
+  }
+};
+
+const getUserOrder = async ({ orderId = null, user_id }) => {
+  try {
+    if (orderId === null || isNaN(orderId)) {
+      throw new Error('Order ID must be a valid number');
+    }
+
+    const [order] = await Promise.all([
+        Order.findOne({
+          attributes: [
+            'order_id',
+            'ordertitle',
+            'orderdescription',
+            'orderspace',
+            'orderdeadline',
+            'orderlanguage',
+            'orderformat',
+            'orderpages',
+            'ordersources',
+            'orderdefaultuploaddocument', 
+            'orderuploaddocuments'
+          ],
+          where: {
+            order_id: orderId,
+            user_id: user_id
           },
           include: [
             {
@@ -339,7 +433,9 @@ module.exports = {
     getAdminOrdersWithPagination,
     getWriterOrdersWithPagination,
     getOrder,
+    getOrderByIdWriter,
     getWriterOrder,
+    getUserOrder,
     getCustomerStats,
     getWriterStats,
 };
