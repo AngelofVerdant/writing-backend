@@ -348,7 +348,7 @@ exports.getById = async (req, res, next) => {
       transaction = await sequelize.transaction();
 
       const [order] = await Promise.all([
-        getOrder({ orderId: orderId, user_id: user.user_id, next }),
+        getOrder({ orderId: orderId, user_id: user.user_id }),
       ]);
 
       await transaction.commit();
@@ -374,7 +374,7 @@ exports.getByIdWriter = async (req, res, next) => {
       transaction = await sequelize.transaction();
 
       const [order] = await Promise.all([
-        getOrderByIdWriter({ orderId: orderId, user_id: user.user_id, next }),
+        getOrderByIdWriter({ orderId: orderId, user_id: user.user_id }),
       ]);
 
       await transaction.commit();
@@ -526,7 +526,7 @@ exports.getUserStats = async (req, res, next) => {
       transaction = await sequelize.transaction();
 
       const [stats] = await Promise.all([
-        getCustomerStats({ user_id: user.user_id, next }),
+        getCustomerStats({ user_id: user.user_id }),
       ]);
 
       await transaction.commit();
@@ -550,7 +550,7 @@ exports.getWorkerStats = async (req, res, next) => {
       transaction = await sequelize.transaction();
 
       const [stats] = await Promise.all([
-        getWriterStats({ writer_id: user.user_id, next }),
+        getWriterStats({ writer_id: user.user_id }),
       ]);
 
       await transaction.commit();

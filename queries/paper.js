@@ -65,10 +65,6 @@ const getPaper = async ({ paperId = null }) => {
         }),
     ]);
 
-    if (!paper) {
-      return next(new ErrorResponse(`Paper not found with ID ${paperId}`, 404));
-    }
-
     return paper;
   } catch (err) {
     logger.log('error', `${err.message}`, { stack: err.stack });
@@ -91,10 +87,6 @@ const getPaperTypes = async ({ paperId = null }) => {
         }),
     ]);
 
-    if (!paper) {
-      return next(new ErrorResponse(`Paper not found with ID ${paperId}`, 404));
-    }
-
     const [papertypes] = await Promise.all([
         paper.getPaperTypes({
           attributes: [
@@ -104,10 +96,6 @@ const getPaperTypes = async ({ paperId = null }) => {
           distinct: true,
         }),
     ]);
-
-    if (!papertypes) {
-      return next(new ErrorResponse(`Paper types not found`, 404));
-    }
 
     const flattenedTypes = flattenTypes(papertypes);
 

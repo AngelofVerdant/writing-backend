@@ -64,10 +64,6 @@ const getPhase = async ({ phaseId = null }) => {
         }),
     ]);
 
-    if (!phase) {
-      return next(new ErrorResponse(`Phase not found with ID ${phaseId}`, 404));
-    }
-
     return phase;
   } catch (err) {
     logger.log('error', `${err.message}`, { stack: err.stack });

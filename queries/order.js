@@ -1,6 +1,5 @@
 const { Order, Level, Paper, PaperType, sequelize } = require('../models');
 const logger = require('../utils/logger');
-const ErrorResponse = require("../utils/errorResponse");
 
 const getOrdersWithPagination = async ({ user_id, sortOrder, filters, searchRegex, skip, limit }) => {
   try {
@@ -159,7 +158,7 @@ const getWriterOrdersWithPagination = async ({ user_id, sortOrder, filters, sear
   }
 };
 
-const getOrder = async ({ orderId = null, user_id, next }) => {
+const getOrder = async ({ orderId = null, user_id }) => {
   try {
     if (orderId === null || isNaN(orderId)) {
       throw new Error('Order ID must be a valid number');
@@ -189,10 +188,6 @@ const getOrder = async ({ orderId = null, user_id, next }) => {
           }
         }),
     ]);
-
-    if (!order) {
-      return next(new ErrorResponse(`Order not found with ID ${orderId}`, 404));
-    }
 
     return order;
   } catch (err) {
@@ -228,10 +223,6 @@ const getOrderByIdWriter = async ({ orderId = null, user_id, next }) => {
           }
         }),
     ]);
-
-    if (!order) {
-      return next(new ErrorResponse(`Order not found with ID ${orderId}`, 404));
-    }
 
     return order;
   } catch (err) {
@@ -285,10 +276,6 @@ const getWriterOrder = async ({ orderId = null, user_id }) => {
         }),
     ]);
 
-    if (!order) {
-      return next(new ErrorResponse(`Order not found with ID ${orderId}`, 404));
-    }
-
     return order;
   } catch (err) {
     logger.log('error', `${err.message}`, { stack: err.stack });
@@ -341,10 +328,6 @@ const getUserOrder = async ({ orderId = null, user_id }) => {
         }),
     ]);
 
-    if (!order) {
-      return next(new ErrorResponse(`Order not found with ID ${orderId}`, 404));
-    }
-
     return order;
   } catch (err) {
     logger.log('error', `${err.message}`, { stack: err.stack });
@@ -352,7 +335,7 @@ const getUserOrder = async ({ orderId = null, user_id }) => {
   }
 };
 
-const getCustomerStats = async ({ user_id, next }) => {
+const getCustomerStats = async ({ user_id }) => {
   try {
     const [totalOrders, statusDistribution, totalPaidOrders ] = await Promise.all([
       Order.count({
@@ -375,10 +358,6 @@ const getCustomerStats = async ({ user_id, next }) => {
       }),
     ]);
 
-    if (!totalOrders) {
-      return next(new ErrorResponse(`Orders not found for user with ID ${user_id}`, 404));
-    }
-
     const totalUnpaidOrders = totalOrders - totalPaidOrders;
     const paymentStatusPercentage = {
       paid: (totalPaidOrders / totalOrders) * 100,
@@ -396,7 +375,7 @@ const getCustomerStats = async ({ user_id, next }) => {
   }
 };
 
-const getWriterStats = async ({ writer_id, next }) => {
+const getWriterStats = async ({ writer_id }) => {
   try {
     const [totalOrders, statusDistribution] = await Promise.all([
       Order.count({
@@ -412,10 +391,6 @@ const getWriterStats = async ({ writer_id, next }) => {
         }
       }),
     ]);
-
-    if (!totalOrders) {
-      return next(new ErrorResponse(`Orders not found for user with ID ${writer_id}`, 404));
-    }
 
     return {
       orderVolume: totalOrders,

@@ -63,11 +63,7 @@ const getPoint = async ({ pointId = null }) => {
           }
         }),
     ]);
-
-    if (!point) {
-      return next(new ErrorResponse(`Point not found with ID ${pointId}`, 404));
-    }
-
+    
     return point;
   } catch (err) {
     logger.log('error', `${err.message}`, { stack: err.stack });

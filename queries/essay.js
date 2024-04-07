@@ -64,10 +64,6 @@ const getEssay = async ({ essayId = null }) => {
         }),
     ]);
 
-    if (!essay) {
-      return next(new ErrorResponse(`Essay not found with ID ${essayId}`, 404));
-    }
-
     return essay;
   } catch (err) {
     logger.log('error', `${err.message}`, { stack: err.stack });

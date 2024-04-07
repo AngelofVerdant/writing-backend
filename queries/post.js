@@ -64,10 +64,6 @@ const getPost = async ({ postId = null }) => {
         }),
     ]);
 
-    if (!post) {
-      return next(new ErrorResponse(`Post not found with ID ${postId}`, 404));
-    }
-
     return post;
   } catch (err) {
     logger.log('error', `${err.message}`, { stack: err.stack });

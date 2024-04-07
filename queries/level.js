@@ -65,10 +65,6 @@ const getLevel = async ({ levelId = null }) => {
         }),
     ]);
 
-    if (!level) {
-      return next(new ErrorResponse(`Level not found with ID ${levelId}`, 404));
-    }
-
     return level;
   } catch (err) {
     logger.log('error', `${err.message}`, { stack: err.stack });
@@ -91,10 +87,6 @@ const getLevelPapers = async ({ levelId = null }) => {
         }),
     ]);
 
-    if (!level) {
-      return next(new ErrorResponse(`Level not found with ID ${levelId}`, 404));
-    }
-
     const [papers] = await Promise.all([
         level.getPapers({
           attributes: [
@@ -104,10 +96,6 @@ const getLevelPapers = async ({ levelId = null }) => {
           distinct: true,
         }),
     ]);
-
-    if (!papers) {
-      return next(new ErrorResponse(`Papers not found`, 404));
-    }
 
     const flattenedPapers = flattenPapers(papers);
 

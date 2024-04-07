@@ -65,10 +65,6 @@ const getPaperType = async ({ paperTypeId = null }) => {
         }),
     ]);
 
-    if (!papertype) {
-      return next(new ErrorResponse(`Paper type not found with ID ${paperTypeId}`, 404));
-    }
-
     return papertype;
   } catch (err) {
     logger.log('error', `${err.message}`, { stack: err.stack });

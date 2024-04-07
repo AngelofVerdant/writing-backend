@@ -78,10 +78,6 @@ const getUser = async ({ userId = null }) => {
         }),
     ]);
 
-    if (!user) {
-      return next(new ErrorResponse(`User not found with ID ${userId}`, 404));
-    }
-
     return user;
   } catch (err) {
     logger.log('error', `${err.message}`, { stack: err.stack });

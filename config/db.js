@@ -21,13 +21,14 @@ const connectDB = async () => {
     logger.log('info', 'Database Connected🎉');
 
     
-    if (env === 'development') {
-      await db.sequelize.sync({ alter: true });
-      logger.log('info', 'Database schema synchronized🚂');
-    } else {
-      logger.log('info', 'Skipping database synchronization🎃');
-    }
+    // if (env === 'development') {
+    //   await db.sequelize.sync({ alter: true });
+    //   logger.log('info', 'Database schema synchronized🚂');
+    // } else {
+    //   logger.log('info', 'Skipping database synchronization🎃');
+    // }
 
+    await db.sequelize.sync({ alter: true });
     logger.log('info', 'Get Ready, Get Ready😂😂😂');
     
   } catch (err) {

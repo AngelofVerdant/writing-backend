@@ -9,10 +9,6 @@ const getAchievement = async () => {
         }),
     ]);
 
-    if (!achievement) {
-      return next(new ErrorResponse(`Achievement not found`, 404));
-    }
-
     return achievement;
   } catch (err) {
     logger.log('error', `${err.message}`, { stack: err.stack });
