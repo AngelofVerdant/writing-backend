@@ -4,7 +4,7 @@ const { paginationMiddleware, sortOrderMiddleware, filterMiddleware, searchMiddl
 const { onlyLoggedIn, onlyAdmin } = require("../middleware/accessControl");
 
 const {
-  getAllPaginate, updateById, getById, getAll,
+  getAllPaginate, updateById, getById, getWriters,
 } = require("../controllers/user");
 
 const validSortOrders = ['asc', 'desc'];
@@ -20,7 +20,7 @@ router.route("/paginate").get(
     filterMiddleware,
     getAllPaginate
 );
-router.route("/all").get(getAll);
+router.route("/writers").get(getWriters);
 router.route("/:userId").patch(onlyAdmin, updateById);
 router.route("/:userId").get(onlyAdmin, getById);
 router.route("/:userId").patch(onlyAdmin, updateById);

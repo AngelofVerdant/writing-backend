@@ -3,11 +3,12 @@ const fs = require('fs');
 const util = require('util');
 const unlinkAsync = util.promisify(fs.unlink);
 const { Order, User, Level, Paper, PaperType, sequelize } = require('../models');
-// const { Op } = require('sequelize');
 const stripe = require("stripe")(process.env.STRIPE_SECRET_TEST_LOCAL)
 const { getOrdersWithPagination, getOrder, getOrderByIdWriter, getWriterOrder, getUserOrder, getAdminOrdersWithPagination, getWriterOrdersWithPagination, getCustomerStats, getWriterStats } = require("../queries/order");
 const { downloadAllDocuments } = require("../utils/common");
 const { generateOrderPdf } = require('../utils/pdf');
+const sendEmail = require("../utils/sendEmail");
+
 
 exports.create = async (req, res, next) => {
   let transaction;
@@ -55,7 +56,7 @@ exports.create = async (req, res, next) => {
 
       const orderAmount = Math.round((parseFloat(type.priceperpage) * parseFloat(orderpages) + parseFloat(orderdeadline.price)) * 100) / 100;
 
-      const order = await Order.create({
+      const order = {
           ordertitle,
           orderdescription,
           orderspace,
@@ -73,13 +74,43 @@ exports.create = async (req, res, next) => {
           paper_id: paperId,
           paper_type_id: typeId,
           user_id: user.user_id,
-      }, { transaction });
+      };
 
-      await transaction.commit();
+      const emailMessage = `
+          <p>Dear ${user.firstname} ${user.lastname},</p>
+          <p>Thank you for placing an order with us! We're thrilled to have the opportunity to assist you.</p>
+          <p>We've successfully received your order details, and our team is ready to get started on your project. However, before we can begin working on it, we kindly request that you proceed with the payment.</p>
+          <p>Here are the details of your order:</p>
+          <ul>
+            <li><strong>Order Title:</strong> ${ordertitle}</li>
+            <li><strong>Deadline:</strong> ${orderdeadline.title}</li>
+          </ul>
+          <p>Total Amount: $ ${orderAmount}</p>
+          <p>Once the payment is completed, we'll promptly start working on your project and keep you updated on its progress.</p>
+          <p>If you have any questions or need further assistance, feel free to reach out to us. We're here to ensure a smooth and satisfactory experience for you.</p>
+          <p>Thank you again for choosing our services. We're looking forward to working with you!</p>
+          <p>Best regards,</p>
+          <p><strong>${process.env.COMPANY_NAME}</strong></p>
+      `;
 
-      res.status(201).json({
+      await sendEmail({
+        to: user.email,
+        subject: "Order Placement Confirmation",
+        html: emailMessage,
+      }, process.env.NODE_ENV === 'production' ? 'support' : 'default')
+      .then(async () => {
+        const createdOrder = await Order.create(order, { transaction });
+        await transaction.commit();
+
+        res.status(201).json({
           success: true,
-          data: order,
+          data: createdOrder,
+        });
+      })
+      .catch(async (err) => {
+        await transaction.rollback();
+        logger.log('error', `${err.message}`, { stack: err.stack });
+        next(new ErrorResponse("Order Placement Confirmation Email could not be sent", 500));
       });
   } catch (err) {
       if (transaction) {
@@ -205,7 +236,6 @@ exports.submitById = async (req, res, next) => {
             where: {
                 order_id: orderId,
                 writer_id: user.user_id,
-                // orderstatus: { id: { [Op.not]: 3 } },
             }
           }, { transaction }),
       ]);
@@ -218,6 +248,41 @@ exports.submitById = async (req, res, next) => {
         return next(new ErrorResponse('Default and additional documents are required', 400));
       }
 
+      const [customer] = await Promise.all([
+        User.findOne({
+          where: {
+            user_id: order.user_id,
+          }
+        }),
+      ]);
+  
+      if (!customer) {
+        return next(new ErrorResponse(`Customer not found`, 404));
+      }
+
+      const customerMessage = `
+        <p>Dear ${customer.firstname} ${customer.lastname},</p>
+        <p>We're pleased to inform you that the work on your writing project has been completed successfully!</p>
+        <p>You can now log in to your account to access and download the final deliverable. Here are the details of your order:</p>
+        <ul>
+          <li><strong>Order Number:</strong> ${order.order_id}</li>
+          <li><strong>Service Requested:</strong> ${order.ordertitle}</li>
+          <li><strong>Deadline:</strong> ${order.orderdeadline.title}</li>
+        </ul>
+        <p>Simply visit our website and log in to your account to retrieve your completed work. If you have any questions or need assistance, please don't hesitate to contact us.</p>
+        <p>Thank you for choosing our services. We hope you are satisfied with the outcome, and we look forward to serving you again in the future.</p>
+        <p>Best regards,</p>
+        <p><strong>${process.env.COMPANY_NAME}</strong></p>
+    `;
+
+    await Promise.all([
+      sendEmail({
+        to: customer.email,
+        subject: "Order Completion Notification",
+        html: customerMessage,
+      }, process.env.NODE_ENV === 'production' ? 'support' : 'default'),
+    ])
+    .then(async () => {
       await order.update({
         orderdefaultuploaddocument,
         orderuploaddocuments,
@@ -227,9 +292,15 @@ exports.submitById = async (req, res, next) => {
       await transaction.commit();
 
       res.status(200).json({
-          success: true,
-          data: order,
+        success: true,
+        data: order,
       });
+    })
+    .catch(async (err) => {
+      await transaction.rollback();
+      logger.log('error', `${err.message}`, { stack: err.stack });
+      next(new ErrorResponse("Order Completion emails could not be sent", 500));
+    });
   } catch (err) {
       if (transaction) {
           await transaction.rollback();
@@ -246,14 +317,21 @@ exports.pay = async (req, res, next) => {
 
     transaction = await sequelize.transaction();
 
-    const order = await Order.findOne({
-      where: {
-        order_id: orderId,
-        user_id: user.user_id,
-      }
-    }, { transaction });
+    const [order, admin] = await Promise.all([
+        Order.findOne({
+          where: {
+              order_id: orderId,
+              user_id: user.user_id,
+          }
+        }, { transaction }),
+        User.findOne({
+          where: {
+              isadmin: true,
+          }
+        }, { transaction }),
+    ]);
 
-    if (!order) {
+    if (!order || !admin) {
       return next(new ErrorResponse(`Order not found with ID ${orderId}`, 404));
     }
 
@@ -266,23 +344,74 @@ exports.pay = async (req, res, next) => {
         payment_method: paymentId,
         return_url: "https://example.com/success",
         confirm: true,
-        }, {
+    }, {
         idempotencyKey: `${orderId}-${paymentId}`
     });
 
     if (order.orderpaymentstatus.id === 2) {
         return next(new ErrorResponse(`Order is already paid for`, 400));
-    }
+    };
 
-    await order.update({
+    const userMessage = `
+      <p>Dear ${user.firstname} ${user.lastname},</p>
+      <p>I hope this email finds you well.</p>
+      <p>I'm writing to confirm that we've received your payment for the writing work order you recently placed with us. We appreciate your trust in our services and are eager to begin working on your project.</p>
+      <p>Here are the details of your order:</p>
+      <ul>
+        <li><strong>Order Number:</strong> ${order.order_id}</li>
+        <li><strong>Service Requested:</strong> ${order.ordertitle}</li>
+        <li><strong>Payment Amount:</strong>$ ${order.orderprice}</li>
+      </ul>
+      <p>Our team will commence work on your project promptly. We aim to deliver high-quality results that meet your expectations within the agreed timeframe.</p>
+      <p>Should you have any questions or require further assistance, please don't hesitate to reach out to us. We're here to ensure your satisfaction every step of the way.</p>
+      <p>Thank you once again for choosing our services. We look forward to delivering exceptional results for you.</p>
+      <p>Best regards,</p>
+      <p><strong>${process.env.COMPANY_NAME}</strong></p>
+    `;
+
+    const adminMessage = `
+      <p>Dear Admin,</p>
+      <p>A new order has been placed and paid for. Here are the details:</p>
+      <ul>
+        <li><strong>Order Number:</strong> ${order.order_id}</li>
+        <li><strong>Service Requested:</strong> ${order.ordertitle}</li>
+        <li><strong>User:</strong> ${user.firstname} ${user.lastname}</li>
+        <li><strong>Email:</strong> ${user.email}</li>
+        <li><strong>Payment Amount:</strong>$ ${order.orderprice}</li>
+      </ul>
+      <p>Please assign a writer to this order as soon as possible.</p>
+      <p>Best regards,</p>
+      <p><strong>${process.env.COMPANY_NAME}</strong></p>
+    `;
+
+    await Promise.all([
+      sendEmail({
+        to: user.email,
+        subject: "Confirmation of Payment and Order Details",
+        html: userMessage,
+      }, process.env.NODE_ENV === 'production' ? 'support' : 'default'),
+      sendEmail({
+        to: admin.email,
+        subject: "New Paid Order Notification",
+        html: adminMessage,
+      }, process.env.NODE_ENV === 'production' ? 'support' : 'default')
+    ])
+    .then(async () => {
+      await order.update({
         orderpaymentstatus: { id: 2, title: 'Paid' },
-    }, { transaction });
+      }, { transaction });
 
-    await transaction.commit();
+      await transaction.commit();
 
-    res.status(200).json({
-      success: true,
-      data: order,
+      res.status(200).json({
+        success: true,
+        data: order,
+      });
+    })
+    .catch(async (err) => {
+      await transaction.rollback();
+      logger.log('error', `${err.message}`, { stack: err.stack });
+      next(new ErrorResponse("Payment confirmation emails could not be sent", 500));
     });
   } catch (err) {
     if (transaction) {
@@ -299,30 +428,85 @@ exports.assign = async (req, res, next) => {
 
     transaction = await sequelize.transaction();
 
-    const [order, user] = await Promise.all([
-        Order.findOne({
-          where: {
-              order_id: orderId,
-          }
-        }),
-        User.findOne({
-          where: {
-              user_id: userId,
-          }
-        }),
+    const order = await Order.findOne({
+      where: {
+        order_id: orderId,
+      }
+    });
+
+    if (!order) {
+      return next(new ErrorResponse(`Order not found with ID ${orderId}`, 404));
+    }
+
+    const [user, customer] = await Promise.all([
+      User.findOne({
+        where: {
+          user_id: userId,
+        }
+      }),
+      User.findOne({
+        where: {
+          user_id: order.user_id,
+        }
+      }),
     ]);
 
-    if (!order || !user) {
-      return next(new ErrorResponse(`Order or User not found with ID ${orderAmount} or ${userId}`, 404));
+    if (!user || !customer) {
+      return next(new ErrorResponse(`User or Customer not found`, 404));
     }
 
     if (order.orderpaymentstatus.id === 1) {
-        return next(new ErrorResponse(`Order Has to be paid for before it can be assigned`, 400));
+      return next(new ErrorResponse(`Order must be paid for before it can be assigned`, 400));
     }
 
+    const customerMessage = `
+      <p>Dear ${customer.firstname} ${customer.lastname},</p>
+      <p>We're excited to inform you that work has started on your writing project. Our team is dedicated to delivering high-quality results that meet your expectations.</p>
+      <p>Here are the details of your order:</p>
+      <ul>
+        <li><strong>Order Number:</strong> ${order.order_id}</li>
+        <li><strong>Service Requested:</strong> ${order.ordertitle}</li>
+        <li><strong>Deadline:</strong> ${order.orderdeadline.title}</li>
+      </ul>
+      <p>We'll keep you updated on the progress of your project and ensure that it is completed within the agreed timeframe. If you have any questions or concerns, please don't hesitate to reach out to us.</p>
+      <p>Thank you for choosing our services. We're committed to delivering exceptional results for you.</p>
+      <p>Best regards,</p>
+      <p><strong>${process.env.COMPANY_NAME}</strong></p>
+    `;
+
+    const writerMessage = `
+      <p>Dear ${user.firstname} ${user.lastname},</p>
+      <p>You have been assigned to work on a writing project for one of our customers. We appreciate your dedication and commitment to delivering high-quality work.</p>
+      <p>Here are the details of the assignment:</p>
+      <ul>
+        <li><strong>Customer Name:</strong> ${customer.firstname} ${customer.lastname}</li>
+        <li><strong>Order Number:</strong> ${order.order_id}</li>
+        <li><strong>Service Requested:</strong> ${order.ordertitle}</li>
+        <li><strong>Deadline:</strong> ${order.orderdeadline.title}</li>
+      </ul>
+      <p>Please review the details carefully and begin working on the project at your earliest convenience. If you have any questions or need further clarification, feel free to reach out to us.</p>
+      <p>We trust in your expertise and look forward to receiving outstanding results from you.</p>
+      <p>Thank you for your cooperation!</p>
+      <p>Best regards,</p>
+      <p><strong>${process.env.COMPANY_NAME}</strong></p>
+    `;
+
+    await Promise.all([
+      sendEmail({
+        to: customer.email,
+        subject: "Order Work Started Notification",
+        html: customerMessage,
+      }, process.env.NODE_ENV === 'production' ? 'support' : 'default'),
+      sendEmail({
+        to: user.email,
+        subject: "Work Assignment Notification",
+        html: writerMessage,
+      }, process.env.NODE_ENV === 'production' ? 'support' : 'default')
+    ]);
+
     await order.update({
-        writer_id: userId,
-        orderstatus: { id: 2, title: 'In Progress' },
+      writer_id: userId,
+      orderstatus: { id: 2, title: 'In Progress' },
     }, { transaction });
 
     await transaction.commit();

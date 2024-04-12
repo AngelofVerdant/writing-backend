@@ -93,7 +93,7 @@ exports.getById = async (req, res, next) => {
   }
 };
 
-exports.getAll = async (req, res, next) => {
+exports.getWriters = async (req, res, next) => {
   let transaction;
   try {
       transaction = await sequelize.transaction();
@@ -105,6 +105,9 @@ exports.getAll = async (req, res, next) => {
               'firstname',
               'lastname'
             ],
+            where: {
+              iswriter: true
+            },
             group: ['user_id']
           }, { transaction }),
       ]);
