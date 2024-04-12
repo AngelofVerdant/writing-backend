@@ -8,6 +8,7 @@ const { getOrdersWithPagination, getOrder, getOrderByIdWriter, getWriterOrder, g
 const { downloadAllDocuments } = require("../utils/common");
 const { generateOrderPdf } = require('../utils/pdf');
 const sendEmail = require("../utils/sendEmail");
+const logger = require('../utils/logger');
 
 
 exports.create = async (req, res, next) => {

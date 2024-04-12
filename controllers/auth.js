@@ -1,33 +1,31 @@
 const ErrorResponse = require("../utils/errorResponse");
 const sendEmail = require("../utils/sendEmail");
 const logger = require('../utils/logger');
-const { User } = require('../models');
+const { User, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 exports.register = async (req, res, next) => {
+  let transaction;
   const { firstname, lastname, mobilenumber, email, password } = req.body;
-
   try {
+    transaction = await sequelize.transaction();
     const user = await User.create({
       firstname,
       lastname,
       mobilenumber,
       email,
       password,
-    });
+    }, { transaction });
 
     const { generatedToken, hashedToken, expirationDate } = user.getAccountActivationToken();
-    console.log({generatedToken, hashedToken, expirationDate})
 
     user.accountActivationToken = hashedToken;
     user.accountActivationExpire = expirationDate;
 
-    await user.save();
-
     const activationUrl = process.env.NODE_ENV === 'production' ? `${process.env.LIVE_FRONT_END}/activate-account/${generatedToken}/${user.user_id}`
                                                                 : `${process.env.LOCAL_FRONT_END}/activate-account/${generatedToken}/${user.user_id}`;
 
-    const message = `
+    const activationMessage = `
       <p>Dear <strong>${user.firstname} ${user.lastname}</strong>,</p>
       <p>Thank you for registering with our website! We're excited to have you as a new member of our community.</p>
       <p>To activate your account, please click the following link:</p>
@@ -41,17 +39,32 @@ exports.register = async (req, res, next) => {
       <p><strong>${process.env.COMPANY_NAME}</strong></p>
     `;
 
-    await sendEmail({
-      to: user.email,
-      subject: "Account Activation",
-      text: message,
-    }, process.env.NODE_ENV === 'production' ? 'accounts' : 'default');
+    await Promise.all([
+      sendEmail({
+        to: user.email,
+        subject: "Account Activation",
+        html: activationMessage,
+      }, process.env.NODE_ENV === 'production' ? 'accounts' : 'default'),
+    ])
+    .then(async () => {
+      await transaction.commit();
 
-    res.status(200).json({ success: true, data: "Thank you for registering! An activation email has been sent to your email address. Please check your inbox and follow the instructions to activate your account." });
+      res.status(200).json({
+        success: true,
+        data: user,
+      });
+    })
+    .catch(async (err) => {
+      await transaction.rollback();
+
+      logger.log('error', `${err.message}`, { stack: err.stack });
+      next(new ErrorResponse("Registration email could not be sent", 500));
+    });
   } catch (err) {
-    logger.log('error', `${err.message}`, { stack: err.stack });
+    if (transaction) {
+      await transaction.rollback();
+    }
     next(err);
-    next(new ErrorResponse("Account Activation Email could not be sent", 500));
   }
 };
 
@@ -96,12 +109,17 @@ exports.login = async (req, res, next) => {
 
 exports.accountActivation = async (req, res, next) => {
   const { activationToken, id } = req.params;
+  let transaction;
 
   try {
-    const user = await User.findByPk(id);
+    transaction = await sequelize.transaction();
+
+    const [user] = await Promise.all([
+      User.findByPk(id, { transaction }),
+    ]);
 
     if (!user) {
-      return next(new ErrorResponse('User not found', 404));
+      return next(new ErrorResponse(`User not found with ID ${id}`, 404));
     }
 
     const isValidToken = user.verifyActivationToken(activationToken);
@@ -115,25 +133,39 @@ exports.accountActivation = async (req, res, next) => {
     user.accountActivationToken = null;
     user.accountActivationExpire = null;
 
-    await user.save();
+    await user.save({ transaction });
+
+    await transaction.commit();
 
     res.status(201).json({
       success: true,
       data: 'Account Activation Success',
     });
   } catch (err) {
+    if (transaction) {
+      await transaction.rollback();
+    }
     next(err);
   }
 };
 
 exports.forgotPassword = async (req, res, next) => {
   const { email } = req.body;
+  let transaction;
 
   try {
-    const user = await User.findOne({ where: { email } });
+    transaction = await sequelize.transaction();
+
+    const [user] = await Promise.all([
+      User.findOne({
+        where: {
+          email
+        }
+      }, { transaction }),
+    ]);
 
     if (!user) {
-      return next(new ErrorResponse("User Account not found", 404));
+      return next(new ErrorResponse(`User not found with Email ${email}`, 404));
     }
   
     if (!user.isactive) {
@@ -155,7 +187,7 @@ exports.forgotPassword = async (req, res, next) => {
 
     if (user.resetRequestCount >= 3) {
       user.islocked = true;
-      await user.save();
+      await user.save({ transaction });
 
       return next(new ErrorResponse("Account has been locked. Please contact support for assistance.", 403));
     }
@@ -165,12 +197,12 @@ exports.forgotPassword = async (req, res, next) => {
     user.resetPasswordToken = hashedToken;
     user.resetPasswordExpire = expirationDate;
 
-    await user.save();
+    await user.save({ transaction });
 
     const resetUrl = process.env.NODE_ENV === 'production' ? `${process.env.LIVE_FRONT_END}/reset-password/${generatedToken}/${user.user_id}`
                                                             : `${process.env.LOCAL_FRONT_END}/reset-password/${generatedToken}/${user.user_id}`;
 
-    const message = `
+    const forgotMessage = `
       <p>Dear <strong>${user.firstname} ${user.lastname}</strong>,</p>
 
       <p>We have received a request to reset the password for your account. If you did not initiate this request, please disregard this email.</p>
@@ -185,25 +217,36 @@ exports.forgotPassword = async (req, res, next) => {
       <p><strong>${process.env.COMPANY_NAME}</strong></p>
     `;
 
-    try {
-      await sendEmail({
+    await Promise.all([
+      sendEmail({
         to: user.email,
         subject: "Password Reset Request",
-        text: message,
-      }, process.env.NODE_ENV === 'production' ? 'accounts' : 'default');
+        html: forgotMessage,
+      }, process.env.NODE_ENV === 'production' ? 'accounts' : 'default'),
+    ])
+    .then(async () => {
+      await transaction.commit();
 
-      res.status(200).json({ success: true, data: "An email with instructions to reset your password has been sent to your registered email address." });
-    } catch (err) {
-      logger.log('error', `${err.message}`, { stack: err.stack });
-
+      res.status(200).json({
+        success: true,
+        data: user,
+      });
+    })
+    .catch(async (err) => {
       user.resetPasswordToken = null;
       user.resetPasswordExpire = null;
 
-      await user.save();
+      await user.save({ transaction });
 
-      return next(new ErrorResponse("Email could not be sent", 500));
-    }
+      await transaction.commit();
+
+      logger.log('error', `${err.message}`, { stack: err.stack });
+      next(new ErrorResponse("Reset email could not be sent", 500));
+    });
   } catch (err) {
+    if (transaction) {
+      await transaction.rollback();
+    }
     next(err);
   }
 };
@@ -211,12 +254,17 @@ exports.forgotPassword = async (req, res, next) => {
 exports.resetPassword = async (req, res, next) => {
   const { resetToken, id } = req.params;
   const { password } = req.body;
+  let transaction;
 
   try {
-    const user = await User.findByPk(id);
+    transaction = await sequelize.transaction();
+
+    const [user] = await Promise.all([
+      User.findByPk(id, { transaction }),
+    ]);
 
     if (!user) {
-      return next(new ErrorResponse('User not found', 404));
+      return next(new ErrorResponse(`User not found with ID ${id}`, 404));
     }
 
     if (!user.isactive) {
@@ -233,7 +281,7 @@ exports.resetPassword = async (req, res, next) => {
       return next(new ErrorResponse('Invalid Password Reset Token', 400));
     }
 
-    const message = `
+    const resetMessage = `
     <p>Dear <strong>${user.firstname} ${user.lastname}</strong>,</p>
 
     <p>This is to inform you that your password has been changed as per your request or as a security measure for your account. We take the security and privacy of our users very seriously, and therefore, we have reset your password as a precautionary measure.</p>
@@ -248,8 +296,14 @@ exports.resetPassword = async (req, res, next) => {
     <p><strong>${process.env.COMPANY_NAME}</strong></p>
     `;
 
-    try {
-
+    await Promise.all([
+      sendEmail({
+        to: user.email,
+        subject: "Your Password Has Been Changed",
+        html: resetMessage,
+      }, process.env.NODE_ENV === 'production' ? 'accounts' : 'default'),
+    ])
+    .then(async () => {
       const hashedPassword = await user.hashPassword(password);
 
       user.password = hashedPassword;
@@ -259,23 +313,25 @@ exports.resetPassword = async (req, res, next) => {
       user.resetRequestCount = 0;
       user.lastResetRequestAt = null;
 
-      await user.save();
+      await user.save({transaction});
 
-      await sendEmail({
-        to: user.email,
-        subject: "Your Password Has Been Changed",
-        text: message,
-      }, process.env.NODE_ENV === 'production' ? 'accounts' : 'default');
+      await transaction.commit();
 
-      res.status(201).json({
+      res.status(200).json({
         success: true,
-        data: "Password Updated Success",
+        data: user,
       });
-    } catch (err) {
-      console.log(err)
-      return next(new ErrorResponse("Password could not be reset", 400));
-    }
+    })
+    .catch(async (err) => {
+      await transaction.rollback();
+
+      logger.log('error', `${err.message}`, { stack: err.stack });
+      next(new ErrorResponse("Password reset confirmation email could not be sent", 500));
+    });
   } catch (err) {
+    if (transaction) {
+      await transaction.rollback();
+    }
     next(err);
   }
 };
