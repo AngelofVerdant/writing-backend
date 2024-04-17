@@ -41,6 +41,8 @@ app.use("/api/points", require("./routes/point"));
 app.use("/api/essays", require("./routes/essay"));
 app.use("/api/phases", require("./routes/phase"));
 app.use("/api/posts", require("./routes/post"));
+app.use("/api/pages", require("./routes/page"));
+app.use("/api/companies", require("./routes/company"));
 
 
 // Use the errorLogger middleware for errors
