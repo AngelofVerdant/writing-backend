@@ -31,6 +31,16 @@ module.exports = (sequelize) => {
             }
         }
       },
+      priceperpage: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false,
+        defaultValue: 0.00,
+        validate: {
+          notEmpty: {
+            msg: 'Price per page is required.',
+          },
+        },
+      },
     },
     {
       modelName: 'Level',
@@ -45,9 +55,11 @@ module.exports = (sequelize) => {
   // Associations
   Level.associate = (models) => {
 
-    Level.hasMany(models.Paper, {
+    Level.belongsToMany(models.Paper, {
+      through: 'PaperLevel',
       foreignKey: 'level_id',
-      as: 'Papers',
+      otherKey: 'paper_id',
+      as: 'LevelPapers',
     });
 
     Level.hasMany(models.Order, {

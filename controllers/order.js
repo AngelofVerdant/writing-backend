@@ -10,7 +10,6 @@ const { generateOrderPdf } = require('../utils/pdf');
 const sendEmail = require("../utils/sendEmail");
 const logger = require('../utils/logger');
 
-
 exports.create = async (req, res, next) => {
   let transaction;
   const user = req.user;
@@ -55,7 +54,9 @@ exports.create = async (req, res, next) => {
         return next(new ErrorResponse(`Order  or Paper or Paper Type not found with ID ${levelId} or ${paperId} or ${typeId}`, 404));
       }
 
-      const orderAmount = Math.round((parseFloat(type.priceperpage) * parseFloat(orderpages) + parseFloat(orderdeadline.price)) * 100) / 100;
+      const basePrice = parseFloat(level.priceperpage) * parseFloat(orderpages);
+      const deadlinePrice = parseFloat(orderdeadline.price);
+      const orderAmount = Math.round((basePrice + deadlinePrice) * 100) / 100;
 
       const order = {
           ordertitle,

@@ -8,11 +8,15 @@ exports.create = async (req, res, next) => {
     const { 
       levelname,
       leveldescription,
+      priceperpage
     } = req.body;
+
+    const levelAmount = Math.round((parseFloat(priceperpage)) * 100) / 100;
 
     const level = await Level.create({
       levelname,
       leveldescription,
+      priceperpage: levelAmount,
     });
 
     res.status(201).json({
@@ -45,7 +49,7 @@ exports.updateById = async (req, res, next) => {
   let transaction;
   try {
       const { levelId } = req.params;
-      const { levelname, leveldescription } = req.body;
+      const { levelname, leveldescription, priceperpage } = req.body;
 
       transaction = await sequelize.transaction();
 
@@ -61,9 +65,12 @@ exports.updateById = async (req, res, next) => {
         return next(new ErrorResponse(`Level not found with ID ${levelId}`, 404));
       }
 
+      const levelAmount = Math.round((parseFloat(priceperpage)) * 100) / 100;
+
       await level.update({
         levelname,
-        leveldescription
+        leveldescription,
+        priceperpage: levelAmount,
       }, { transaction });
 
       await transaction.commit();

@@ -6,45 +6,47 @@ const { getPapersWithPagination, getPaper, getPaperTypes } = require("../queries
 exports.create = async (req, res, next) => {
   let transaction;
   try {
-      const { 
-          papername,
-          paperdescription,
-          level_id,
-      } = req.body;
+    const {
+      papername,
+      paperdescription,
+      level_ids,
+    } = req.body;
 
-      transaction = await sequelize.transaction();
+    transaction = await sequelize.transaction();
 
-      const [level] = await Promise.all([
-          Level.findOne({
-            where: {
-                level_id: level_id,
-            }
-          }, { transaction }),
-      ]);
+    const paper = await Paper.create(
+      {
+        papername,
+        paperdescription,
+      },
+      { transaction }
+    );
 
-      if (!level) {
-        return next(new ErrorResponse(`Level not found with ID ${level_id}`, 404));
-      }
-
-      const paper = await Paper.create({
-          papername,
-          paperdescription,
-          level_id,
-      }, { transaction });
-
-      await transaction.commit();
-
-      res.status(201).json({
-          success: true,
-          data: paper,
+    if (level_ids && level_ids.length > 0) {
+      const levels = await Level.findAll({
+        where: {
+          level_id: level_ids,
+        },
+        transaction,
       });
+
+      await paper.addLevels(levels, { transaction });
+    }
+
+    await transaction.commit();
+
+    res.status(201).json({
+      success: true,
+      data: paper,
+    });
   } catch (err) {
-      if (transaction) {
-          await transaction.rollback();
-      }
-      next(err);
+    if (transaction) {
+      await transaction.rollback();
+    }
+    next(err);
   }
 };
+
 
 exports.getAllPaginate = async (req, res, next) => {
   try {
@@ -66,45 +68,54 @@ exports.getAllPaginate = async (req, res, next) => {
 exports.updateById = async (req, res, next) => {
   let transaction;
   try {
-      const { paperId } = req.params;
-      const { papername, paperdescription, level_id } = req.body;
+    const { paperId } = req.params;
+    const { papername, paperdescription, level_ids } = req.body;
 
-      transaction = await sequelize.transaction();
+    transaction = await sequelize.transaction();
 
-      const [paper, level] = await Promise.all([
-          Paper.findOne({
-            where: {
-                paper_id: paperId,
-            }
-          }, { transaction }),
-          Level.findOne({
-            where: {
-                level_id: level_id,
-            }
-          }, { transaction }),
-      ]);
+    const [paper, levels] = await Promise.all([
+      Paper.findOne({
+        where: {
+          paper_id: paperId,
+        },
+        include: [{ model: Level, as: 'Levels' }],
+        transaction,
+      }),
+      Level.findAll({
+        where: {
+          level_id: level_ids,
+        },
+        transaction,
+      }),
+    ]);
 
-      if (!paper || !level) {
-        return next(new ErrorResponse(`Paper or Level not found with ID ${paperId} or ${level_id}`, 404));
-      }
+    if (!paper) {
+      return next(new ErrorResponse(`Paper not found with ID ${paperId}`, 404));
+    }
 
-      await paper.update({
+    await paper.update(
+      {
         papername,
         paperdescription,
-        level_id,
-      }, { transaction });
+      },
+      { transaction }
+    );
 
-      await transaction.commit();
+    await paper.removeLevels(paper.Levels, { transaction });
 
-      res.status(200).json({
-          success: true,
-          data: paper,
-      });
+    await paper.addLevels(levels, { transaction });
+
+    await transaction.commit();
+
+    res.status(200).json({
+      success: true,
+      data: paper,
+    });
   } catch (err) {
-      if (transaction) {
-          await transaction.rollback();
-      }
-      next(err);
+    if (transaction) {
+      await transaction.rollback();
+    }
+    next(err);
   }
 };
 
@@ -136,40 +147,42 @@ exports.getById = async (req, res, next) => {
 exports.deleteById = async (req, res, next) => {
   let transaction;
   try {
-      const { paperId } = req.params;
+    const { paperId } = req.params;
 
-      transaction = await sequelize.transaction();
+    transaction = await sequelize.transaction();
 
-      const [paper] = await Promise.all([
-          Paper.findOne({
-            where: {
-                paper_id: paperId,
-            }
-          }, { transaction }),
-      ]);
+    const paper = await Paper.findOne({
+      where: {
+        paper_id: paperId,
+      },
+      include: [{ model: Level, as: 'Levels' }],
+      transaction,
+    });
 
-      if (!paper) {
-        return next(new ErrorResponse(`Paper not found with ID ${paperId}`, 404));
-      }
+    if (!paper) {
+      return next(new ErrorResponse(`Paper not found with ID ${paperId}`, 404));
+    }
 
-      await Paper.destroy({
-        where: { 
-          paper_id: paperId
-         },
-         transaction
-      });
+    await paper.removeLevels(paper.Levels, { transaction });
 
-      await transaction.commit();
+    await Paper.destroy({
+      where: {
+        paper_id: paperId,
+      },
+      transaction,
+    });
 
-      res.status(200).json({
-          success: true,
-          data: {},
-      });
+    await transaction.commit();
+
+    res.status(200).json({
+      success: true,
+      data: {},
+    });
   } catch (err) {
-      if (transaction) {
-          await transaction.rollback();
-      }
-      next(err);
+    if (transaction) {
+      await transaction.rollback();
+    }
+    next(err);
   }
 };
 

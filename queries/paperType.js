@@ -26,7 +26,7 @@ const getPaperTypesWithPagination = async ({ sortOrder, filters, searchRegex, sk
           where: whereClause
         }),
         PaperType.findAll({
-          attributes: ['paper_type_id', 'papertypename', 'papertypedescription', 'priceperpage'],
+          attributes: ['paper_type_id', 'papertypename', 'papertypedescription'],
           where: whereClause,
           order: [['papertypename', sortOrder]],
           limit: limit,
@@ -41,7 +41,6 @@ const getPaperTypesWithPagination = async ({ sortOrder, filters, searchRegex, sk
       papertypes: papertypes.map(type => ({
         id: type.paper_type_id,
         title: type.papertypename,
-        price: type.priceperpage,
       })),
     };
   } catch (err) {
@@ -58,7 +57,7 @@ const getPaperType = async ({ paperTypeId = null }) => {
 
     const [papertype] = await Promise.all([
         PaperType.findOne({
-          attributes: ['paper_type_id', 'papertypename', 'papertypedescription', 'priceperpage', 'paper_id'],
+          attributes: ['paper_type_id', 'papertypename', 'papertypedescription', 'paper_id'],
           where: {
             paper_type_id: paperTypeId
           }

@@ -1,4 +1,4 @@
-const { Paper } = require('../models');
+const { Paper, Level, PaperLevel } = require('../models');
 const { flattenToIdAndTitle: flattenTypes } = require("../helpers/paperType");
 const logger = require('../utils/logger');
 
@@ -58,10 +58,21 @@ const getPaper = async ({ paperId = null }) => {
 
     const [paper] = await Promise.all([
         Paper.findOne({
-          attributes: ['paper_id', 'papername', 'paperdescription', 'level_id'],
+          attributes: ['paper_id', 'papername', 'paperdescription'],
           where: {
             paper_id: paperId
-          }
+          },
+          include: [
+            {
+              model: Level,
+              as: 'Levels',
+              through: {
+                  model: PaperLevel,
+                  as: 'PaperLevels',
+              },
+              attributes: ['level_id', 'levelname'],
+            },
+          ]
         }),
     ]);
 

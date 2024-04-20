@@ -1,5 +1,4 @@
-const { Level } = require('../models');
-const { flattenToIdAndTitle: flattenPapers } = require("../helpers/paper");
+const { Level, Paper } = require('../models');
 const logger = require('../utils/logger');
 
 const getLevelsWithPagination = async ({ sortOrder, filters, searchRegex, skip, limit }) => {
@@ -27,7 +26,7 @@ const getLevelsWithPagination = async ({ sortOrder, filters, searchRegex, skip, 
           where: whereClause
         }),
         Level.findAll({
-          attributes: ['level_id', 'levelname', 'leveldescription'],
+          attributes: ['level_id', 'levelname', 'leveldescription', 'priceperpage'],
           where: whereClause,
           order: [['levelname', sortOrder]],
           limit: limit,
@@ -42,6 +41,7 @@ const getLevelsWithPagination = async ({ sortOrder, filters, searchRegex, skip, 
       levels: levels.map(level => ({
         id: level.level_id,
         title: level.levelname,
+        price: level.priceperpage,
       })),
     };
   } catch (err) {
@@ -58,7 +58,7 @@ const getLevel = async ({ levelId = null }) => {
 
     const [level] = await Promise.all([
         Level.findOne({
-          attributes: ['level_id', 'levelname', 'leveldescription'],
+          attributes: ['level_id', 'levelname', 'leveldescription', 'priceperpage'],
           where: {
             level_id: levelId
           }
@@ -78,30 +78,23 @@ const getLevelPapers = async ({ levelId = null }) => {
       throw new Error('Level ID must be a valid number');
     }
 
-    const [level] = await Promise.all([
-        Level.findOne({
-          attributes: ['level_id', 'levelname', 'leveldescription'],
-          where: {
-            level_id: levelId
-          }
-        }),
-    ]);
+    const level = await Level.findOne({
+      where: { level_id: levelId },
+      include: [
+        {
+          model: Paper,
+          as: 'LevelPapers',
+          attributes: ['paper_id', 'papername'],
+        },
+      ],
+    });
 
-    const [papers] = await Promise.all([
-        level.getPapers({
-          attributes: [
-            'paper_id', 
-            'papername'
-          ],
-          distinct: true,
-        }),
-    ]);
-
-    const flattenedPapers = flattenPapers(papers);
+    if (!level) {
+      throw new Error(`Level not found with ID ${levelId}`);
+    }
 
     return {
       level: level,
-      papers: flattenedPapers,
     };
   } catch (err) {
     logger.log('error', `${err.message}`, { stack: err.stack });

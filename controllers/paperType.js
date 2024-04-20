@@ -8,7 +8,6 @@ exports.create = async (req, res, next) => {
       const { 
           papertypename,
           papertypedescription,
-          priceperpage,
           paper_id,
       } = req.body;
 
@@ -26,12 +25,9 @@ exports.create = async (req, res, next) => {
         return next(new ErrorResponse(`Paper not found with ID ${paper_id}`, 404));
       }
 
-      const paperTypeAmount = Math.round((parseFloat(priceperpage)) * 100) / 100;
-
       const papertype = await PaperType.create({
           papertypename,
           papertypedescription,
-          priceperpage: paperTypeAmount,
           paper_id,
       }, { transaction });
 
@@ -70,7 +66,7 @@ exports.updateById = async (req, res, next) => {
   let transaction;
   try {
       const { paperTypeId } = req.params;
-      const { papertypename, papertypedescription, priceperpage, paper_id } = req.body;
+      const { papertypename, papertypedescription, paper_id } = req.body;
 
       transaction = await sequelize.transaction();
 
@@ -91,12 +87,9 @@ exports.updateById = async (req, res, next) => {
         return next(new ErrorResponse(`PaperType or Paper not found with ID ${paperTypeId} or ${paper_id}`, 404));
       }
 
-      const paperTypeAmount = Math.round((parseFloat(priceperpage)) * 100) / 100;
-
       await paperType.update({
         papertypename,
         papertypedescription,
-        priceperpage: paperTypeAmount,
         paper_id,
       }, { transaction });
 

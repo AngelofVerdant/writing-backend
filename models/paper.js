@@ -45,10 +45,20 @@ module.exports = (sequelize) => {
   // Associations
   Paper.associate = (models) => {
 
-    Paper.belongsTo(models.Level, {
-        foreignKey: 'level_id',
-        as: 'Level',
+    Paper.belongsToMany(models.Level, {
+      through: 'PaperLevel',
+      foreignKey: 'paper_id',
+      otherKey: 'level_id',
+      as: 'Levels',
     });
+
+    Paper.belongsToMany(models.Level, {
+      through: 'PaperLevel',
+      foreignKey: 'paper_id',
+      otherKey: 'level_id',
+      as: 'PaperLevels',
+    });
+
 
     Paper.hasMany(models.PaperType, {
       foreignKey: 'paper_id',
